@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { aggregate } from "@/lib/aggregate";
 import { toMarkdown } from "@/lib/markdown";
 import type { AnalysisSummary, ClassifiedReview, Issue, SteamApiResponse, SteamReview } from "@/lib/types";
@@ -23,6 +23,25 @@ interface Result {
   data: SteamApiResponse;
   classified: ClassifiedReview[];
   summary: AnalysisSummary;
+  /** 분석한 시각 (ISO 문자열) */
+  savedAt: string;
+}
+
+/** public/sample-result.json 이 있으면 첫 화면에 예시 결과 버튼을 보여준다 */
+const SAMPLE_URL = "/sample-result.json";
+
+function isResult(v: unknown): v is Result {
+  const r = v as Result;
+  return !!r && Array.isArray(r.data?.reviews) && Array.isArray(r.classified) && typeof r.summary?.overview === "string";
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
+
+function safeFileName(name: string) {
+  return name.replace(/[\\/:*?"<>|]/g, "_");
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -46,6 +65,26 @@ export default function Home() {
   const [form, setForm] = useState<FormValues>({ input: "", language: "koreana", sort: "recent", limit: 100 });
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [result, setResult] = useState<Result | null>(null);
+  const [sample, setSample] = useState<Result | null>(null);
+  const [showingSample, setShowingSample] = useState(false);
+
+  // 예시 결과 파일이 있으면 미리 불러둔다 (없으면 버튼을 숨김)
+  useEffect(() => {
+    fetch(SAMPLE_URL)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (isResult(json)) setSample(json);
+      })
+      .catch(() => {});
+  }, []);
+
+  function openSample() {
+    if (!sample) return;
+    setIssueFilter(null);
+    setResult(sample);
+    setShowingSample(true);
+    setPhase({ kind: "done" });
+  }
   const [issueFilter, setIssueFilter] = useState<Issue | null>(null);
   const reviewsRef = useRef<HTMLElement>(null);
 
@@ -81,7 +120,8 @@ export default function Home() {
         votes,
       });
 
-      setResult({ data, classified, summary });
+      setResult({ data, classified, summary, savedAt: new Date().toISOString() });
+      setShowingSample(false);
       setPhase({ kind: "done" });
     } catch (err) {
       setPhase({ kind: "error", message: err instanceof Error ? err.message : "알 수 없는 오류가 발생했어요." });
@@ -103,7 +143,18 @@ export default function Home() {
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${result.data.game.name.replace(/[\\/:*?"<>|]/g, "_")}_리뷰분석.md`;
+    a.download = `${safeFileName(result.data.game.name)}_리뷰분석.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  /** 분석 결과를 그대로 JSON으로 저장 (예시 결과로 쓰거나 나중에 다시 보기용) */
+  function downloadJson() {
+    if (!result) return;
+    const blob = new Blob([JSON.stringify(result)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${safeFileName(result.data.game.name)}_분석결과.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -137,11 +188,26 @@ export default function Home() {
             <li>AI가 리뷰마다 주제, 감정, 문제의 심각도를 매기고 한 줄로 요약해요.</li>
             <li>비슷한 불만을 묶어 우선순위가 높은 이슈와 다음 패치 제안을 뽑아요.</li>
           </ol>
+          {sample && (
+            <div className="sample-cta">
+              <button type="button" className="btn-primary" onClick={openSample}>
+                예시 결과 보기
+              </button>
+              <span>
+                {sample.data.game.name} 리뷰 {sample.data.reviews.length}건을 미리 분석해 둔 결과예요. 기다리지 않고 바로 볼 수 있어요.
+              </span>
+            </div>
+          )}
         </section>
       )}
 
       {result && stats && !busy && (
         <div className="results">
+          {showingSample && (
+            <div className="notice notice-info">
+              {formatDate(result.savedAt)}에 미리 분석해 둔 예시 결과예요. 최신 리뷰로 분석하려면 위에서 게임을 입력하고 분석을 시작하세요.
+            </div>
+          )}
           <section className={result.data.game.headerImage ? "game has-img" : "game"}>
             {result.data.game.headerImage && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -169,6 +235,9 @@ export default function Home() {
               <div className="actions">
                 <button type="button" className="btn-secondary" onClick={downloadMarkdown}>
                   리포트 내려받기 (.md)
+                </button>
+                <button type="button" className="btn-secondary" onClick={downloadJson}>
+                  결과 저장 (.json)
                 </button>
               </div>
             </div>

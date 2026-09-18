@@ -1,12 +1,21 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReviewLanguage, ReviewSort } from "@/lib/types";
 
 export interface FormValues {
   input: string;
+  /** 검색 목록에서 게임을 고른 경우 그 게임의 앱 ID */
+  appId?: string;
   language: ReviewLanguage;
   sort: ReviewSort;
   limit: number;
+}
+
+interface SearchItem {
+  appId: string;
+  name: string;
+  image?: string;
 }
 
 const EXAMPLES = [
@@ -14,6 +23,9 @@ const EXAMPLES = [
   { id: "413150", name: "Stardew Valley" },
   { id: "730", name: "Counter-Strike 2" },
 ];
+
+/** 숫자나 상점 주소면 검색하지 않는다 */
+const looksLikeId = (v: string) => /^\d+$/.test(v.trim()) || v.includes("store.steampowered.com");
 
 export function AnalyzeForm({
   values,
@@ -28,24 +40,132 @@ export function AnalyzeForm({
 }) {
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) => onChange({ ...values, [key]: value });
 
+  const [items, setItems] = useState<SearchItem[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [searching, setSearching] = useState(false);
+  const listId = useId();
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // 입력이 멈추고 0.3초 뒤에 검색 (게임을 이미 골랐으면 검색 안 함)
+  useEffect(() => {
+    const q = values.input.trim();
+    if (values.appId || q.length < 2 || looksLikeId(q)) {
+      setItems([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        .then((res) => res.json())
+        .then((data) => {
+          setItems(data.items ?? []);
+          setActive(-1);
+          setSearching(false);
+        })
+        .catch(() => {});
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [values.input, values.appId]);
+
+  // 바깥을 누르면 목록 닫기
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  function pick(item: SearchItem) {
+    onChange({ ...values, input: item.name, appId: item.appId });
+    setOpen(false);
+    setItems([]);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open || items.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => (i + 1) % items.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => (i <= 0 ? items.length - 1 : i - 1));
+    } else if (e.key === "Enter" && active >= 0) {
+      e.preventDefault();
+      pick(items[active]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
+
+  const showList = open && !values.appId && values.input.trim().length >= 2 && !looksLikeId(values.input);
+
   return (
     <form
       className="form"
       onSubmit={(e) => {
         e.preventDefault();
+        setOpen(false);
         if (!busy) onSubmit();
       }}
     >
-      <label className="field field-main">
-        <span>게임</span>
+      <div className="field field-main" ref={wrapRef}>
+        <label htmlFor="game-input">게임</label>
         <input
+          id="game-input"
           value={values.input}
-          onChange={(e) => set("input", e.target.value)}
-          placeholder="스팀 상점 주소 또는 앱 ID"
+          onChange={(e) => {
+            onChange({ ...values, input: e.target.value, appId: undefined });
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          placeholder="게임 이름, 스팀 상점 주소 또는 앱 ID"
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={showList}
+          aria-controls={listId}
+          aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
           required
           disabled={busy}
         />
-      </label>
+        {showList && (
+          <ul className="suggest" id={listId} role="listbox">
+            {searching && items.length === 0 && <li className="suggest-empty">찾는 중</li>}
+            {!searching && items.length === 0 && (
+              <li className="suggest-empty">검색 결과가 없어요. 영어 이름으로도 찾아보세요.</li>
+            )}
+            {items.map((item, i) => (
+              <li
+                key={item.appId}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                className={i === active ? "suggest-item is-active" : "suggest-item"}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(item);
+                }}
+                onMouseEnter={() => setActive(i)}
+              >
+                {item.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.image} alt="" />
+                ) : (
+                  <span className="suggest-noimg" />
+                )}
+                <span>{item.name}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <label className="field">
         <span>언어</span>
         <select value={values.language} onChange={(e) => set("language", e.target.value as ReviewLanguage)} disabled={busy}>
@@ -76,7 +196,16 @@ export function AnalyzeForm({
       <p className="examples">
         예시
         {EXAMPLES.map((ex) => (
-          <button key={ex.id} type="button" className="chip" disabled={busy} onClick={() => set("input", ex.id)}>
+          <button
+            key={ex.id}
+            type="button"
+            className="chip"
+            disabled={busy}
+            onClick={() => {
+              onChange({ ...values, input: ex.name, appId: ex.id });
+              setOpen(false);
+            }}
+          >
             {ex.name}
           </button>
         ))}

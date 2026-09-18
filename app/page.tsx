@@ -95,7 +95,10 @@ export default function Home() {
     try {
       // 1) 스팀 리뷰 수집
       setPhase({ kind: "fetching" });
-      const data = await postJson<SteamApiResponse>("/api/steam", form);
+      const data = await postJson<SteamApiResponse>("/api/steam", {
+        ...form,
+        input: form.appId ?? form.input, // 목록에서 고른 게임이면 앱 ID로 정확하게
+      });
       if (data.reviews.length === 0) {
         throw new Error("조건에 맞는 리뷰가 없어요. 언어를 '전체'로 바꾸거나 다른 게임을 입력해 보세요.");
       }

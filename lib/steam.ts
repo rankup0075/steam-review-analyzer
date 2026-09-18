@@ -125,3 +125,41 @@ export async function fetchReviews(
 
   return { reviews, reviewScoreDesc, totalReviews };
 }
+
+export interface GameSearchItem {
+  appId: string;
+  name: string;
+  image?: string;
+}
+
+async function storeSearch(term: string, lang: string): Promise<GameSearchItem[]> {
+  const params = new URLSearchParams({ term, l: lang, cc: "KR" });
+  try {
+    const res = await fetch(`https://store.steampowered.com/api/storesearch/?${params}`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items: { type?: string; id: number; name: string; tiny_image?: string }[] = data?.items ?? [];
+    return items
+      .filter((i) => !i.type || i.type === "app")
+      .map((i) => ({ appId: String(i.id), name: i.name, image: i.tiny_image }));
+  } catch {
+    return [];
+  }
+}
+
+/** 게임 이름으로 검색. 한글 이름과 영어 이름 모두 잡히도록 두 언어로 검색해 합친다. */
+export async function searchGames(term: string, limit = 8): Promise<GameSearchItem[]> {
+  const q = term.trim();
+  if (q.length < 2) return [];
+  const [ko, en] = await Promise.all([storeSearch(q, "koreana"), storeSearch(q, "english")]);
+  const seen = new Set<string>();
+  const merged: GameSearchItem[] = [];
+  for (const item of [...ko, ...en]) {
+    if (seen.has(item.appId)) continue;
+    seen.add(item.appId);
+    merged.push(item);
+  }
+  return merged.slice(0, limit);
+}

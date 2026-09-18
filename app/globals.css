@@ -84,6 +84,43 @@ img { max-width: 100%; display: block; }
   font-size: 15px;
 }
 .field input::placeholder { color: var(--muted); }
+.field-main { position: relative; }
+.suggest {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  box-shadow: 0 8px 24px rgba(22, 32, 44, 0.12);
+  max-height: 360px;
+  overflow-y: auto;
+  color: var(--ink);
+}
+.suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  font-size: 15px;
+}
+.suggest-item.is-active { background: var(--bg); }
+.suggest-item img, .suggest-noimg {
+  width: 92px;
+  height: 35px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex: none;
+  background: var(--line);
+}
+.suggest-empty { padding: 10px 8px; color: var(--muted); font-size: 14px; }
 .examples {
   grid-column: 1 / -1;
   margin: 2px 0 0;

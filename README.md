@@ -2,8 +2,8 @@
 
 스팀 유저 리뷰를 AI로 주제·감정·심각도별로 분류하고, 개발팀이 바로 쓸 수 있는 이슈 리포트로 정리하는 웹 앱.
 
-> 데모: (Vercel 배포 후 링크 추가)
-> 스크린샷/GIF: (여기에 추가)
+> 데모: https://steam-review-analyzer-five.vercel.app/
+> 스크린샷/GIF:![alt text](image-1.png)
 
 ## 해결하려는 문제
 

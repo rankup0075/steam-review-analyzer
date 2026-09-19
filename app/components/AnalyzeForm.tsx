@@ -51,7 +51,7 @@ export function AnalyzeForm({
   // 입력이 멈추고 0.4초 뒤에 검색 (게임을 이미 골랐으면 검색 안 함)
   useEffect(() => {
     const q = values.input.trim();
-    if (values.appId || q.length < 2 || looksLikeId(q)) {
+    if (values.appId || !q || looksLikeId(q)) {
       setItems([]);
       setSearching(false);
       return;
@@ -106,7 +106,7 @@ export function AnalyzeForm({
     }
   }
 
-  const showList = open && !values.appId && values.input.trim().length >= 2 && !looksLikeId(values.input);
+  const showList = open && !values.appId && values.input.trim().length >= 1 && !looksLikeId(values.input);
 
   return (
     <form

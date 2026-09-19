@@ -152,7 +152,7 @@ async function storeSearch(term: string, lang: string): Promise<GameSearchItem[]
 /** 게임 이름으로 검색. 한글 이름과 영어 이름 모두 잡히도록 두 언어로 검색해 합친다. */
 export async function searchGames(term: string, limit = 8): Promise<GameSearchItem[]> {
   const q = term.trim();
-  if (q.length < 2) return [];
+  if (!q) return [];
   const [ko, en] = await Promise.all([storeSearch(q, "koreana"), storeSearch(q, "english")]);
   const seen = new Set<string>();
   const merged: GameSearchItem[] = [];

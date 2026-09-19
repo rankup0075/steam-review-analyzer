@@ -182,10 +182,10 @@ export function AnalyzeForm({
         </select>
       </label>
       <label className="field">
-        <span>정렬</span>
+        <span>가져올 리뷰</span>
         <select value={values.sort} onChange={(e) => set("sort", e.target.value as ReviewSort)} disabled={busy}>
-          <option value="recent">최신순</option>
-          <option value="all">도움돼요순</option>
+          <option value="recent">최신 리뷰</option>
+          <option value="all">인기 리뷰</option>
         </select>
       </label>
       <label className="field">
@@ -200,6 +200,9 @@ export function AnalyzeForm({
         {busy ? "분석 중" : "분석 시작"}
       </button>
 
+      {values.sort === "all" && (
+        <p className="form-hint">인기 리뷰: 다른 유저들이 &lsquo;유용해요&rsquo;를 많이 누른 리뷰를 최근 1년 안에서 가져와요.</p>
+      )}
       <p className="examples">
         예시
         {EXAMPLES.map((ex) => (

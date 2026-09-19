@@ -3,6 +3,7 @@
  * 공통 LLM 호출(lib/llm.ts) 위에 올라가는 "기능 모듈" 하나.
  */
 import { generateJson, type JsonSchema } from "./llm";
+import { bucketOf, PLAYTIME_BUCKETS } from "./playtime";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
@@ -69,7 +70,7 @@ const isOneOf = <T extends string>(list: readonly T[], v: unknown): v is T =>
 
 export async function classifyReviews(reviews: SteamReview[]): Promise<ClassifiedReview[]> {
   const lines = reviews.map((r) =>
-    JSON.stringify({ id: r.id, 추천: r.votedUp, 플레이시간: r.playtimeHours, 내용: r.text }),
+    JSON.stringify({ id: r.id, 추천: r.votedUp, 작성시플레이시간: r.playtimeAtReviewHours ?? r.playtimeHours, 내용: r.text }),
   );
   const prompt = `다음 ${reviews.length}개의 리뷰를 분류해줘.\n\n${lines.join("\n")}`;
 
@@ -117,6 +118,9 @@ const SUMMARY_SYSTEM = `너는 게임 개발사의 라이브 운영 리드다.
 
 규칙:
 - overview: 현재 유저 여론을 2~3문장으로 요약.
+- playtimeInsight: 리뷰 작성 당시 플레이 시간 구간(${PLAYTIME_BUCKETS.map((b) => `${b.label} ${b.range}`).join(", ")})별로
+  여론과 불만이 어떻게 다른지 1~2문장. 예: 초반 유저는 조작감, 장기 유저는 콘텐츠 부족을 지적.
+  리뷰가 5건 미만인 구간은 단정하지 말고, 뚜렷한 차이가 없으면 없다고 쓴다.
 - issues: 개발팀이 대응해야 할 문제를 영향도(심각도 × 언급 빈도) 순으로 최대 5개.
   같은 원인의 불만은 하나로 묶고, 근거가 된 리뷰의 id를 reviewIds에 모두 넣는다. 목록에 있는 id만 쓴다.
 - strengths: 유저들이 반복해서 칭찬하는 점 최대 3개.
@@ -127,6 +131,7 @@ const SUMMARY_SCHEMA: JsonSchema = {
   type: "OBJECT",
   properties: {
     overview: { type: "STRING" },
+    playtimeInsight: { type: "STRING" },
     issues: {
       type: "ARRAY",
       items: {
@@ -151,24 +156,42 @@ const SUMMARY_SCHEMA: JsonSchema = {
     },
     recommendations: { type: "ARRAY", items: { type: "STRING" } },
   },
-  required: ["overview", "issues", "strengths", "recommendations"],
+  required: ["overview", "playtimeInsight", "issues", "strengths", "recommendations"],
 };
+
+/** 요약 단계에 필요한 리뷰 정보 (원문은 보내지 않는다) */
+export interface ReviewMeta {
+  votedUp: boolean;
+  /** 리뷰 작성 당시 플레이 시간 */
+  playtime: number;
+}
 
 export async function summarizeReviews(
   game: Pick<GameInfo, "name">,
   classified: ClassifiedReview[],
-  votes: Record<string, boolean>,
+  meta: Record<string, ReviewMeta>,
 ): Promise<AnalysisSummary> {
-  const positive = classified.filter((c) => votes[c.id]).length;
-  const lines = classified.map(
-    (c) =>
-      `${c.id} | ${votes[c.id] ? "추천" : "비추천"} | ${c.sentiment} | ${c.categories.join(",")} | ${c.severity} | ${c.summary}`,
-  );
+  const positive = classified.filter((c) => meta[c.id]?.votedUp).length;
+
+  // 구간별 추천 비율은 코드로 계산해서 AI에게 사실로 알려준다
+  const bucketLines = PLAYTIME_BUCKETS.map((b) => {
+    const inBucket = classified.filter((c) => meta[c.id] && bucketOf(meta[c.id].playtime).id === b.id);
+    const rec = inBucket.filter((c) => meta[c.id].votedUp).length;
+    return `${b.label}(${b.range}): ${inBucket.length}건, 추천 ${inBucket.length ? Math.round((rec / inBucket.length) * 100) : 0}%`;
+  });
+
+  const lines = classified.map((c) => {
+    const m = meta[c.id];
+    return `${c.id} | ${m?.votedUp ? "추천" : "비추천"} | ${m ? bucketOf(m.playtime).label : "?"} ${m?.playtime ?? "?"}h | ${c.sentiment} | ${c.categories.join(",")} | ${c.severity} | ${c.summary}`;
+  });
 
   const prompt = `게임: ${game.name}
 분석한 리뷰 ${classified.length}건 중 추천 ${positive}건, 비추천 ${classified.length - positive}건.
 
-형식: id | 추천여부 | 감정 | 주제 | 심각도 | 요약
+작성 당시 플레이 시간 구간별:
+${bucketLines.join("\n")}
+
+형식: id | 추천여부 | 작성 당시 플레이 시간 | 감정 | 주제 | 심각도 | 요약
 ${lines.join("\n")}`;
 
   const raw = await generateJson<Partial<AnalysisSummary>>({
@@ -192,6 +215,7 @@ ${lines.join("\n")}`;
 
   return {
     overview: String(raw.overview ?? "").trim(),
+    playtimeInsight: String(raw.playtimeInsight ?? "").trim() || undefined,
     issues,
     strengths: (raw.strengths ?? []).slice(0, 3),
     recommendations: (raw.recommendations ?? []).map(String).slice(0, 5),

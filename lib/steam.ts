@@ -55,6 +55,9 @@ export async function fetchGameInfo(appId: string): Promise<Pick<GameInfo, "name
   }
 }
 
+/** 스팀은 분 단위로 준다 → 소수점 한 자리 시간 */
+const toHours = (minutes?: number) => Math.round(((minutes ?? 0) / 60) * 10) / 10;
+
 interface SteamReviewRaw {
   recommendationid: string;
   review: string;
@@ -62,7 +65,7 @@ interface SteamReviewRaw {
   votes_up: number;
   timestamp_created: number;
   language: string;
-  author?: { playtime_forever?: number };
+  author?: { playtime_forever?: number; playtime_at_review?: number };
 }
 
 export async function fetchReviews(
@@ -114,7 +117,9 @@ export async function fetchReviews(
         votesUp: r.votes_up ?? 0,
         createdAt: r.timestamp_created,
         language: r.language,
-        playtimeHours: Math.round(((r.author?.playtime_forever ?? 0) / 60) * 10) / 10,
+        playtimeHours: toHours(r.author?.playtime_forever),
+        playtimeAtReviewHours:
+          r.author?.playtime_at_review != null ? toHours(r.author.playtime_at_review) : undefined,
       });
       if (reviews.length >= opts.limit) break;
     }

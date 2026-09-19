@@ -1,4 +1,5 @@
 import type { Aggregate } from "./aggregate";
+import { formatHours } from "./playtime";
 import {
   CATEGORY_LABELS,
   SEVERITY_LABELS,
@@ -52,10 +53,24 @@ export function toMarkdown(
     for (const id of issue.reviewIds.slice(0, 5)) {
       const c = classById.get(id);
       const r = reviewById.get(id);
-      if (c && r) lines.push(`- ${c.summary} (${r.votedUp ? "추천" : "비추천"}, ${r.playtimeHours}시간)`);
+      if (c && r) {
+        const at = r.playtimeAtReviewHours != null ? `작성 당시 ${formatHours(r.playtimeAtReviewHours)}, ` : "";
+        lines.push(`- ${c.summary} (${r.votedUp ? "추천" : "비추천"}, ${at}현재 ${formatHours(r.playtimeHours)})`);
+      }
     }
     lines.push("");
   });
+
+  lines.push("## 플레이 시간별 여론 (리뷰 작성 당시 기준)", "");
+  if (summary.playtimeInsight) lines.push(summary.playtimeInsight, "");
+  lines.push("| 구간 | 리뷰 | 추천 비율 | 주요 불만 |", "| --- | ---: | ---: | --- |");
+  for (const p of stats.playtime) {
+    const complaints = p.topComplaints.map((c) => CATEGORY_LABELS[c.category]).join(", ") || "-";
+    lines.push(
+      `| ${p.bucket.label} (${p.bucket.range}) | ${p.total} | ${p.total ? `${p.recommendRate}%` : "-"} | ${p.total ? complaints : "-"} |`,
+    );
+  }
+  lines.push("");
 
   lines.push("## 유저들이 좋아하는 점", "");
   for (const s of summary.strengths) lines.push(`- **${s.title}**: ${s.description}`);

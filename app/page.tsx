@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { aggregate } from "@/lib/aggregate";
 import { toMarkdown } from "@/lib/markdown";
+import { playtimeAtReview, type PlaytimeBucketId } from "@/lib/playtime";
 import type { AnalysisSummary, ClassifiedReview, Issue, SteamApiResponse, SteamReview } from "@/lib/types";
 import { AnalyzeForm, type FormValues } from "./components/AnalyzeForm";
 import { IssueList } from "./components/IssueList";
 import { ReviewList } from "./components/ReviewList";
+import { PlaytimeSection } from "./components/PlaytimeSection";
 import { SentimentChart } from "./components/SentimentChart";
 
 const BATCH_SIZE = 50; // lib/review-analysis.ts의 CLASSIFY_BATCH_SIZE와 같게 유지
@@ -81,17 +83,20 @@ export default function Home() {
   function openSample() {
     if (!sample) return;
     setIssueFilter(null);
+    setBucketFilter("");
     setResult(sample);
     setShowingSample(true);
     setPhase({ kind: "done" });
   }
   const [issueFilter, setIssueFilter] = useState<Issue | null>(null);
+  const [bucketFilter, setBucketFilter] = useState<PlaytimeBucketId | "">("");
   const reviewsRef = useRef<HTMLElement>(null);
 
   const busy = phase.kind === "fetching" || phase.kind === "classifying" || phase.kind === "summarizing";
 
   async function run() {
     setIssueFilter(null);
+    setBucketFilter("");
     try {
       // 1) 스팀 리뷰 수집
       setPhase({ kind: "fetching" });
@@ -116,11 +121,13 @@ export default function Home() {
 
       // 3) 전체 요약과 이슈 도출
       setPhase({ kind: "summarizing" });
-      const votes = Object.fromEntries(data.reviews.map((r) => [r.id, r.votedUp]));
+      const meta = Object.fromEntries(
+        data.reviews.map((r) => [r.id, { votedUp: r.votedUp, playtime: playtimeAtReview(r) }]),
+      );
       const summary = await postJson<AnalysisSummary>("/api/analyze/summary", {
         gameName: data.game.name,
         classified,
-        votes,
+        meta,
       });
 
       setResult({ data, classified, summary, savedAt: new Date().toISOString() });
@@ -257,6 +264,18 @@ export default function Home() {
             <SentimentChart stats={stats.categories} />
           </section>
 
+          <section className="block">
+            <h2>플레이 시간별 여론</h2>
+            <PlaytimeSection
+              stats={stats.playtime}
+              insight={result.summary.playtimeInsight}
+              onShowReviews={(id) => {
+                setBucketFilter(id);
+                reviewsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+          </section>
+
           <div className="split">
             <section className="block">
               <h2>먼저 봐야 할 이슈</h2>
@@ -288,6 +307,8 @@ export default function Home() {
               classified={result.classified}
               issueFilter={issueFilter}
               onClearIssue={() => setIssueFilter(null)}
+              bucketFilter={bucketFilter}
+              onBucketChange={setBucketFilter}
             />
           </section>
         </div>

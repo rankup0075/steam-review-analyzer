@@ -52,7 +52,10 @@ export interface SteamReview {
   id: string;
   text: string;
   votedUp: boolean;
+  /** 현재까지 총 플레이 시간 */
   playtimeHours: number;
+  /** 리뷰를 쓸 당시 플레이 시간 (예전에 저장한 결과에는 없을 수 있음) */
+  playtimeAtReviewHours?: number;
   createdAt: number;
   votesUp: number;
   language: string;
@@ -91,6 +94,8 @@ export interface Strength {
 
 export interface AnalysisSummary {
   overview: string;
+  /** 플레이 시간 구간별 여론 차이 (예전에 저장한 결과에는 없을 수 있음) */
+  playtimeInsight?: string;
   issues: Issue[];
   strengths: Strength[];
   recommendations: string[];

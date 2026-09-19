@@ -133,6 +133,7 @@ img { max-width: 100%; display: block; }
   color: var(--muted);
 }
 .examples .chip:first-of-type { margin-left: 4px; }
+.form-hint { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--muted); }
 
 .btn-primary, .btn-secondary {
   height: 42px;
@@ -288,7 +289,40 @@ img { max-width: 100%; display: block; }
   border-radius: 3px;
 }
 
+/* 플레이 시간별 여론 */
+.pt-insight { margin: 0 0 16px; max-width: 72ch; }
+.pt-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.pt-card { border: 1px solid var(--line); border-radius: var(--radius-m); padding: 14px; display: grid; gap: 8px; align-content: start; }
+.pt-card.is-empty { background: var(--bg); }
+.pt-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pt-head b { font-size: 17px; }
+.pt-head span { font-size: 13px; color: var(--muted); }
+.pt-rate { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.pt-rate b { font-size: 24px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pt-rate span { margin-left: auto; font-size: 13px; }
+.pt-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.pt-bar-pos { background: var(--pos); }
+.pt-bar-neg { background: var(--neg); }
+.pt-complaints { margin: 0; font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.pt-complaints .tag { white-space: nowrap; }
+.pt-none { margin: 0; font-size: 14px; color: var(--muted); }
+.pt-note { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+.pt-card .btn-link { justify-self: start; }
+
 /* 리뷰 목록 */
+.vote-tabs { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-s); overflow: hidden; margin-bottom: 12px; }
+.vote-tab {
+  border: 0; border-right: 1px solid var(--line); background: var(--surface);
+  padding: 7px 16px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.vote-tab:last-child { border-right: 0; }
+.vote-tab span { font-weight: 400; color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.vote-tab.is-on { background: var(--navy); color: var(--navy-ink); }
+.vote-tab.is-on span { color: inherit; opacity: 0.8; }
+.vote-tab-up.is-on { background: var(--pos); }
+.vote-tab-down.is-on { background: var(--neg); }
+.sort-select { margin-left: auto; }
+.pt-tag { padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--bg); border: 1px solid var(--line); }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .filters select {
   height: 34px; padding: 0 10px;
@@ -296,7 +330,7 @@ img { max-width: 100%; display: block; }
   background: var(--surface); font-size: 14px;
 }
 .filters .chip { height: 34px; padding: 0 12px; display: inline-flex; gap: 6px; align-items: center; }
-.filters .count { margin-left: auto; color: var(--muted); font-size: 14px; }
+.filters .count { color: var(--muted); font-size: 14px; }
 .reviews { list-style: none; margin: 0; padding: 0; }
 .review { padding: 14px 0; border-top: 1px solid var(--line); }
 .review-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; }
@@ -328,6 +362,8 @@ img { max-width: 100%; display: block; }
   .game.has-img { grid-template-columns: 1fr; }
   .game h2 { font-size: 28px; }
   .split { grid-template-columns: 1fr; }
+  .pt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sort-select { margin-left: 0; }
 }
 @media (max-width: 520px) {
   .page { padding-top: 28px; }

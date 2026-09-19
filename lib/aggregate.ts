@@ -1,3 +1,4 @@
+import { bucketOf, playtimeAtReview, PLAYTIME_BUCKETS, type PlaytimeBucket } from "./playtime";
 import { CATEGORIES, type Category, type ClassifiedReview, type Severity, type SteamReview } from "./types";
 
 export interface CategoryStat {
@@ -8,6 +9,18 @@ export interface CategoryStat {
   total: number;
 }
 
+export interface PlaytimeStat {
+  bucket: PlaytimeBucket;
+  total: number;
+  recommended: number;
+  recommendRate: number;
+  /** 이 구간 부정·혼합 리뷰에서 많이 나온 주제 (최대 2개) */
+  topComplaints: { category: Category; count: number }[];
+}
+
+/** 불만 주제로 세지 않는 카테고리 (구체적인 개선점이 아님) */
+const NOT_ACTIONABLE: Category[] = ["overall", "other"];
+
 export interface Aggregate {
   total: number;
   recommended: number;
@@ -15,6 +28,7 @@ export interface Aggregate {
   categories: CategoryStat[];
   severity: Record<Severity, number>;
   unanalyzed: number;
+  playtime: PlaytimeStat[];
 }
 
 /** AI를 쓰지 않는 결정적 통계. 숫자는 항상 코드로 계산해 AI의 계산 실수를 피한다. */
@@ -35,6 +49,31 @@ export function aggregate(reviews: SteamReview[], classified: ClassifiedReview[]
 
   const recommended = reviews.filter((r) => r.votedUp).length;
 
+  // 플레이 시간 구간별 통계
+  const classById = new Map(classified.map((c) => [c.id, c]));
+  const playtime: PlaytimeStat[] = PLAYTIME_BUCKETS.map((bucket) => {
+    const inBucket = reviews.filter((r) => bucketOf(playtimeAtReview(r)).id === bucket.id);
+    const rec = inBucket.filter((r) => r.votedUp).length;
+    const complaints = new Map<Category, number>();
+    for (const r of inBucket) {
+      const c = classById.get(r.id);
+      if (!c || c.sentiment === "positive") continue;
+      for (const cat of c.categories) {
+        if (!NOT_ACTIONABLE.includes(cat)) complaints.set(cat, (complaints.get(cat) ?? 0) + 1);
+      }
+    }
+    return {
+      bucket,
+      total: inBucket.length,
+      recommended: rec,
+      recommendRate: inBucket.length ? Math.round((rec / inBucket.length) * 100) : 0,
+      topComplaints: [...complaints.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([category, count]) => ({ category, count })),
+    };
+  });
+
   return {
     total: reviews.length,
     recommended,
@@ -49,5 +88,6 @@ export function aggregate(reviews: SteamReview[], classified: ClassifiedReview[]
       ),
     severity,
     unanalyzed: classified.filter((c) => c.unanalyzed).length,
+    playtime,
   };
 }

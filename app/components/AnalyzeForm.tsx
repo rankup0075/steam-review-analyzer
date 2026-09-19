@@ -44,10 +44,11 @@ export function AnalyzeForm({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [searching, setSearching] = useState(false);
+  const [translatedTo, setTranslatedTo] = useState<string[] | undefined>();
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // 입력이 멈추고 0.3초 뒤에 검색 (게임을 이미 골랐으면 검색 안 함)
+  // 입력이 멈추고 0.4초 뒤에 검색 (게임을 이미 골랐으면 검색 안 함)
   useEffect(() => {
     const q = values.input.trim();
     if (values.appId || q.length < 2 || looksLikeId(q)) {
@@ -62,11 +63,12 @@ export function AnalyzeForm({
         .then((res) => res.json())
         .then((data) => {
           setItems(data.items ?? []);
+          setTranslatedTo(data.translatedTo);
           setActive(-1);
           setSearching(false);
         })
         .catch(() => {});
-    }, 300);
+    }, 400);
     return () => {
       clearTimeout(timer);
       ctrl.abort();
@@ -138,6 +140,11 @@ export function AnalyzeForm({
         {showList && (
           <ul className="suggest" id={listId} role="listbox">
             {searching && items.length === 0 && <li className="suggest-empty">찾는 중</li>}
+            {translatedTo && items.length > 0 && (
+              <li className="suggest-hint" aria-hidden>
+                영어 제목 &lsquo;{translatedTo[0]}&rsquo;(으)로도 찾아봤어요
+              </li>
+            )}
             {!searching && items.length === 0 && (
               <li className="suggest-empty">검색 결과가 없어요. 영어 이름으로도 찾아보세요.</li>
             )}

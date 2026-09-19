@@ -121,6 +121,7 @@ img { max-width: 100%; display: block; }
   background: var(--line);
 }
 .suggest-empty { padding: 10px 8px; color: var(--muted); font-size: 14px; }
+.suggest-hint { padding: 6px 8px 4px; color: var(--muted); font-size: 12px; }
 .examples {
   grid-column: 1 / -1;
   margin: 2px 0 0;

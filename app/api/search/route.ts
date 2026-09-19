@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { searchGames } from "@/lib/steam";
+import { findGames } from "@/lib/game-search";
+
+export const maxDuration = 30;
 
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams.get("q") ?? "";
-  const items = await searchGames(q.slice(0, 80));
-  return NextResponse.json({ items });
+  const result = await findGames(q.slice(0, 80));
+  return NextResponse.json(result);
 }

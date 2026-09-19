@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { badRequest, errorResponse } from "@/lib/http";
-import { fetchGameInfo, fetchReviews, parseAppId, searchGames } from "@/lib/steam";
+import { findGames } from "@/lib/game-search";
+import { fetchGameInfo, fetchReviews, parseAppId } from "@/lib/steam";
 import type { ReviewLanguage, ReviewSort, SteamApiResponse } from "@/lib/types";
 
 export const maxDuration = 30;
@@ -16,7 +17,9 @@ export async function POST(req: Request) {
     // 주소나 숫자가 아니면 게임 이름으로 보고 검색 결과 1위를 쓴다
     let appId = parseAppId(input);
     if (!appId) {
-      const [first] = await searchGames(input, 1);
+      const {
+        items: [first],
+      } = await findGames(input, 1);
       if (!first) return badRequest(`'${input}'(으)로 찾은 게임이 없어요. 영어 이름이나 스팀 상점 주소로 다시 입력해 보세요.`);
       appId = first.appId;
     }

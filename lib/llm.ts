@@ -28,6 +28,9 @@ interface GenerateJsonOptions {
   prompt: string;
   schema: JsonSchema;
   temperature?: number;
+  /** 빨리 끝나야 하는 짧은 요청(검색 등)은 줄여서 쓴다 */
+  timeoutMs?: number;
+  attemptsPerModel?: number;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -47,14 +50,14 @@ function getModels() {
 
 type Attempt = { ok: true; text: string } | { ok: false; retry: boolean; message: string };
 
-async function callModel(model: string, apiKey: string, body: unknown): Promise<Attempt> {
+async function callModel(model: string, apiKey: string, body: unknown, timeoutMs: number): Promise<Attempt> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/${model}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
     return { ok: false, retry: false, message: "AI 서버가 제시간에 응답하지 않았어요." }; // 멈춘 모델은 바로 다음 모델로
@@ -94,6 +97,8 @@ export async function generateJson<T>({
   prompt,
   schema,
   temperature = 0.2,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+  attemptsPerModel = ATTEMPTS_PER_MODEL,
 }: GenerateJsonOptions): Promise<T> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -117,10 +122,10 @@ export async function generateJson<T>({
 
   // 모델 목록을 차례로 시도: 붐비거나(5xx) 한도 초과(429)·사용 불가(404)면 다음 모델로 넘어간다
   for (const model of getModels()) {
-    for (let attempt = 0; attempt < ATTEMPTS_PER_MODEL; attempt++) {
+    for (let attempt = 0; attempt < attemptsPerModel; attempt++) {
       if (attempt > 0) await sleep(2000 * attempt);
 
-      const result = await callModel(model, apiKey, body);
+      const result = await callModel(model, apiKey, body, timeoutMs);
       if (result.ok) {
         try {
           return JSON.parse(stripFences(result.text)) as T;
